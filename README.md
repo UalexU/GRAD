@@ -19,6 +19,14 @@ Two pieces that work together, with all your data kept **only in your own browse
    country code, GPA above its scale, passport expiring soon, and so on).
 5. Pin the GradFill icon to the toolbar.
 
+## Additional profile fields
+
+The Citizenship section can store a primary and second citizenship and an explicit answer to the dual-citizenship question. GradFill asks you to review answers about dual citizenship and the second country, even when the label and other hints agree.
+
+Use the Add button at the end of Education, Work experience, Research experience, Publications or Recommenders to save more entries. Jobs can include responsibilities and accomplishments. Research entries can include a project, institution, supervisor, dates and a description. Education can include a minor. Save details after editing. When a portal has one entry form at a time, use GradFill's entry picker to choose the record you want to fill.
+
+These fields reflect application guidance from [Oxford](https://www.ox.ac.uk/admissions/graduate/application-guide/your-details/about-you), [Stanford](https://gradadmissions.stanford.edu/apply/application-overview), and [WashU](https://physics.washu.edu/what-does-graduate-application-look).
+
 ## Updating GradFill without losing your details
 
 Your details and tracker are stored inside the extension. **Clicking "Remove" on

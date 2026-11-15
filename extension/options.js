@@ -16,6 +16,7 @@ function h(tag, attrs, ...kids) {
 
 function input(f, value, onchange) {
   const attrs = { "data-k": f.k, oninput: e => { onchange(e.target.value.trim()); dirty = true; check(); } };
+  if (f.type === "textarea") return h("textarea", attrs, value || "");
   if (f.options) return h("select", attrs, f.options.map(o => h("option", { value: o, selected: o === value }, o || "—")));
   return h("input", { ...attrs, type: f.type || "text", value: value || "" });
 }
@@ -33,7 +34,17 @@ function build() {
     const fs = h("fieldset", { id: `sec-${s.id}` }, h("legend", {}, s.title));
     if (s.hint) fs.append(h("p", { class: "muted" }, s.hint));
     if (s.list) {
-      profile[s.id].forEach((entry, i) => fs.append(h("div", { class: "entry" }, h("h3", {}, `${s.title} #${i + 1}`), fieldsFor(s, entry))));
+      const entries = h("div", {});
+      const appendEntry = (entry, i) => entries.append(h("div", { class: "entry" }, h("h3", {}, `${s.title} #${i + 1}`), fieldsFor(s, entry)));
+      profile[s.id].forEach(appendEntry);
+      fs.append(entries, h("button", { type: "button", onclick: () => {
+        const entry = GF.blankEntry(s);
+        const index = profile[s.id].push(entry) - 1;
+        appendEntry(entry, index);
+        dirty = true;
+        check();
+        entries.lastElementChild.querySelector("[data-k]").focus();
+      } }, "Add " + ({ employment: "work experience", research: "research experience", education: "education", publications: "publication", recommenders: "recommender" }[s.id])));
     } else fs.append(fieldsFor(s, profile[s.id]));
     form.append(fs);
     nav.append(h("button", { type: "button", onclick: () => fs.scrollIntoView({ behavior: "smooth" }) }, s.title));
@@ -45,7 +56,11 @@ function normalise(p) {
   const base = GF.emptyProfile();
   for (const s of GF.SECTIONS) {
     if (!p || !p[s.id]) continue;
-    if (s.list) base[s.id] = base[s.id].map((blank, i) => ({ ...blank, ...(p[s.id][i] || {}) }));
+    if (s.list) {
+      const saved = Array.isArray(p[s.id]) ? p[s.id] : [];
+      base[s.id] = Array.from({ length: Math.max(s.list, saved.length) },
+        (_, i) => ({ ...GF.blankEntry(s), ...(saved[i] || {}) }));
+    }
     else base[s.id] = { ...base[s.id], ...p[s.id] };
   }
   return base;
@@ -68,6 +83,10 @@ function doubts(p) {
   });
   const dob = Date.parse(p.personal.date_of_birth);
   if (dob) { const age = (today - dob) / 3.156e10; if (age < 16 || age > 80) out.push(`Date of birth gives age ${age.toFixed(0)} — check it`); }
+  const { country_of_citizenship: primary, second_country_of_citizenship: second, dual_citizenship: dual } = p.citizenship;
+  if (dual === "Yes" && !second) out.push("Dual citizenship is selected but the second country is empty");
+  if (second && dual === "No") out.push("A second citizenship is saved but dual citizenship is set to No");
+  if (second && primary.toLowerCase() === second.toLowerCase()) out.push("Both citizenship countries are the same");
   const exp = Date.parse(p.citizenship.passport_expiry);
   if (exp && exp < today.getTime() + 3.156e10) out.push("Passport expires within a year — schools and visas may need longer validity");
   const range = (v, lo, hi, what) => { if (v !== "" && !(Number(v) >= lo && Number(v) <= hi)) out.push(`${what} ${v} is outside ${lo}–${hi}`); };

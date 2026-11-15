@@ -5,7 +5,7 @@ globalThis.GF = GF;
 
 const YES_NO = ["", "Yes", "No"];
 
-// Profile layout. `list: n` sections hold up to n entries (Education #1, #2, ...).
+// Profile layout. `list: n` sections start with n entries (Education #1, #2, ...).
 GF.SECTIONS = [
   { id: "personal", title: "Personal", fields: [
     { k: "first_name", label: "First / given name", hint: "Exactly as on your passport" },
@@ -31,7 +31,9 @@ GF.SECTIONS = [
     { k: "country", label: "Country" },
   ] },
   { id: "citizenship", title: "Citizenship", fields: [
-    { k: "country_of_citizenship", label: "Country of citizenship" },
+    { k: "country_of_citizenship", label: "Primary country of citizenship" },
+    { k: "dual_citizenship", label: "Do you hold dual citizenship?", options: YES_NO },
+    { k: "second_country_of_citizenship", label: "Second country of citizenship" },
     { k: "country_of_birth", label: "Country of birth" },
     { k: "city_of_birth", label: "City of birth" },
     { k: "us_citizen", label: "U.S. citizen?", options: YES_NO },
@@ -48,6 +50,7 @@ GF.SECTIONS = [
     { k: "state", label: "State / province" },
     { k: "degree", label: "Degree", hint: "e.g. B.Tech" },
     { k: "major", label: "Major / field" },
+    { k: "minor", label: "Academic minor" },
     { k: "start_date", label: "Start date", type: "date" },
     { k: "end_date", label: "End / expected date", type: "date" },
     { k: "gpa", label: "GPA", hint: "Exactly as on your transcript — never converted" },
@@ -72,10 +75,19 @@ GF.SECTIONS = [
   { id: "employment", title: "Work experience", list: 3, fields: [
     { k: "employer", label: "Employer" },
     { k: "title", label: "Job title" },
+    { k: "description", label: "Responsibilities / accomplishments", type: "textarea" },
     { k: "city", label: "City" },
     { k: "country", label: "Country" },
     { k: "start_date", label: "Start date", type: "date" },
     { k: "end_date", label: "End date", type: "date" },
+  ] },
+  { id: "research", title: "Research experience", list: 1, fields: [
+    { k: "project", label: "Project title" },
+    { k: "institution", label: "Institution / lab" },
+    { k: "mentor", label: "Research supervisor / mentor" },
+    { k: "start_date", label: "Start date", type: "date" },
+    { k: "end_date", label: "End date", type: "date" },
+    { k: "description", label: "Research description", type: "textarea" },
   ] },
   { id: "publications", title: "Publications", list: 6, hint: "Papers, conference talks, posters, preprints", fields: [
     { k: "title", label: "Title of the paper" },
@@ -171,6 +183,16 @@ GF.RULES = [
   ["tests.duolingo_score", /duolingo.*score/i, "high"],
   ["tests.duolingo_date", /duolingo.*date/i, "high"],
 
+  ["citizenship.dual_citizenship", /\b(?:do you|have you|are you)\b.*\b(?:dual|multiple|more than one|two)\b.*\b(?:citizenships?|nationalit(?:y|ies)|citizens?)\b|\b(?:dual|multiple) (?:citizenship|nationality)(?:\s*\?|$)/i, "low"],
+  ["citizenship.second_country_of_citizenship", /\b(?:second|secondary|additional|other) (?:country of )?(?:citizenship|nationality|citizen country)\b|\b(?:citizenship|nationality|country of citizenship)\s*(?:#\s*)?2\b|\b(?:citizenship|nationality) (?:second|secondary|additional|other)\b/i, "low"],
+
+  ["research.*.start_date", /^research .*\b(start|from|begin)\b/i, "high"],
+  ["research.*.end_date", /^research .*\b(end|to|until)\b.*\bdate\b|^research (?:end|until|to)(?: date)?$/i, "high"],
+  ["research.*.mentor", /^research .*\b(supervisor|mentor|advisor|adviser|principal investigator)\b/i, "high"],
+  ["research.*.institution", /^research .*\b(institution|organization|organisation|laboratory|lab name|university)\b/i, "high"],
+  ["research.*.project", /^research .*\b(project title|project name|title of project|title|name of research project)\b/i, "high"],
+  ["research.*.description", /^research .*\b(description|summary)\b|\bdescribe your (?:previous |prior )?research experience\b/i, "low"],
+  ["employment.*.description", /^employment .*\b(description|responsibilities|duties|accomplishments)\b|\b(?:job description|job responsibilities)\b/i, "low"],
   ["employment.*.start_date", rx(`^${EMP}.*(start|from|begin)`), "high"],
   ["employment.*.end_date", rx(`^${EMP}.*(\\bend\\b|\\bto\\b|until)`), "high"],
   ["employment.*.city", rx(`^${EMP}.*(\\bcity\\b|\\btown\\b)`), "high"],
@@ -181,11 +203,12 @@ GF.RULES = [
   ["education.*.has_degree", rx(`^${EDU}.*((receive|receiving|earn|earned|awarded|conferr|complet)\\w*.*\\bdegree\\b|\\bdegree\\b.*(received|awarded|conferred|expected|completed))`), "high"],
   ["education.*.degree", rx(`^${EDU}.*(level of study|degree level|level of (education|degree)|type of degree|degree type|program level)`), "high"],
   ["education.*.start_date", rx(`^${EDU}.*(start|from|begin|entr(y|ance)|attended from)`), "high"],
-  ["education.*.end_date", rx(`^${EDU}.*(\\bend\\b|\\bto\\b|until|graduat|completion|conferr|award)`), "high"],
+  ["education.*.end_date", rx(`^${EDU}.*(\\bend\\b|\\bto\\b|until|\\bgraduat|completion|conferr|award)`), "high"],
   ["education.*.city", rx(`^${EDU}.*(\\bcity\\b|\\btown\\b)`), "high"],
   ["education.*.state", rx(`^${EDU}.*(\\bstate\\b|province|region)`), "high"],
   ["education.*.country", rx(`^${EDU}.*country`), "high"],
   ["education.*.institution", /institution|university|college|school name|name of (the )?school|^education .*\bname\b/i, "high"],
+  ["education.*.minor", /^(?:education )?(?:(?:academic|undergraduate|college|secondary) )?minor(?: field(?: of study)?)?$/i, "high"],
   ["education.*.major", /major|field of study|discipline|concentration|specialization|branch/i, "high"],
   ["education.*.degree", /^education .*(degree|qualification)( (earned|received|type|awarded|name|title))?$/i, "high"],
   ["education.*.degree", /degree (earned|received|type|awarded|name|title)|^(education )?degree$|qualification/i, "low"],
@@ -240,6 +263,7 @@ GF.HEADINGS = [
   ["other", /emergency|parent|guardian|father|mother|family (information|details|background)|next of kin|spouse|sponsor|financial support/i, "other person"],
   ["recommenders", /recommend|referee|reference|evaluator|letter writer/i, "recommender"],
   ["publications", /publication|\bpapers?\b|research output|conference|journal|presentations?|preprint|poster/i, "publication"],
+  ["research", /research experience|research history|research project|research activities/i, "research"],
   ["education", /education|academic (history|record|background)|institution|colleges?( attended)?$|universit(y|ies)( attended)?$|schools? attended|prior degree/i, "education"],
   ["employment", /employment|work experience|professional experience|\bjob\b|employer/i, "employment"],
   ["citizenship", /citizenship|nationality|immigration|visa/i, "citizenship"],
@@ -267,16 +291,19 @@ GF.DOCS = [
 // Fields where a wrong value has legal or immigration consequences: always flagged.
 GF.ALWAYS_CHECK = new Set([
   "personal.sex", "personal.date_of_birth", "personal.full_name", "citizenship.country_of_citizenship",
+  "citizenship.dual_citizenship", "citizenship.second_country_of_citizenship",
   "citizenship.visa_type", "citizenship.visa_required", "citizenship.us_citizen",
   "citizenship.us_permanent_resident", "citizenship.passport_number", "citizenship.passport_expiry",
 ]);
 
 GF.LIST_SECTIONS = GF.SECTIONS.filter(s => s.list).map(s => s.id);
 
+GF.blankEntry = section => Object.fromEntries(section.fields.map(field => [field.k, ""]));
+
 GF.emptyProfile = function () {
   const p = {};
   for (const s of GF.SECTIONS) {
-    const blank = () => Object.fromEntries(s.fields.map(f => [f.k, ""]));
+    const blank = () => GF.blankEntry(s);
     p[s.id] = s.list ? Array.from({ length: s.list }, blank) : blank();
   }
   return p;

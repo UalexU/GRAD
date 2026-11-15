@@ -69,6 +69,10 @@ var GF = globalThis.GF;
     const typeKey = f.type === "email" ? "contact.email" : f.type === "tel" ? "contact.phone" : null;
     const agrees = k => [fromAuto && fromAuto.key, fromAttr && fromAttr.key, typeKey && inSection(typeKey, f)].filter(x => x === k).length;
 
+    // Citizenship answers must be explicitly reviewed, even if field hints agree.
+    const manualCitizenship = ["citizenship.dual_citizenship", "citizenship.second_country_of_citizenship"];
+    const citizenshipMatch = [fromLabel, fromAttr].find(match => manualCitizenship.includes(match?.key));
+    if (citizenshipMatch) return { key: citizenshipMatch.key, conf: "low", why: "confirm citizenship answer" };
     if (fromLabel && fromLabel.conf === "high") return { key: fromLabel.key, conf: "high", why: "label" };
     if (fromAuto) {
       const conf = !fromLabel || fromLabel.key === fromAuto.key ? "high" : "low";
@@ -93,7 +97,7 @@ var GF = globalThis.GF;
     ["Nepal", "NP", "NPL", "Nepalese", "Nepali"], ["Bangladesh", "BD", "BGD", "Bangladeshi"], ["Pakistan", "PK", "PAK", "Pakistani"],
     ["Sri Lanka", "LK", "LKA", "Sri Lankan"], ["Bhutan", "BT", "BTN", "Bhutanese"], ["Singapore", "SG", "SGP", "Singaporean"],
     ["United Arab Emirates", "AE", "ARE", "Emirati", "UAE"], ["Saudi Arabia", "SA", "SAU", "Saudi"], ["Italy", "IT", "ITA", "Italian"],
-    ["Spain", "ES", "ESP", "Spanish"], ["Netherlands", "NL", "NLD", "Dutch", "The Netherlands", "Holland"],
+    ["Paraguay", "PY", "PRY", "Paraguayan"], ["Spain", "ES", "ESP", "Spanish"], ["Netherlands", "NL", "NLD", "Dutch", "The Netherlands", "Holland"],
     ["Switzerland", "CH", "CHE", "Swiss"], ["Sweden", "SE", "SWE", "Swedish"], ["Ireland", "IE", "IRL", "Irish"],
     ["Russia", "RU", "RUS", "Russian", "Russian Federation"], ["Brazil", "BR", "BRA", "Brazilian"], ["Mexico", "MX", "MEX", "Mexican"],
     ["Taiwan", "TW", "TWN", "Taiwanese", "Taiwan, Province of China", "Republic of China"],
@@ -137,7 +141,7 @@ var GF = globalThis.GF;
       }
     }
     if (last === "sex") out.push(...(SEX[norm(value)] || []));
-    if (/^(us_citizen|us_permanent_resident|visa_required|has_degree)$/.test(last)) out.push(...(YESNO[norm(value)] || []));
+    if (/^(us_citizen|us_permanent_resident|visa_required|has_degree|dual_citizenship)$/.test(last)) out.push(...(YESNO[norm(value)] || []));
     if (last === "degree") for (const [rx, alts] of DEGREES) if (rx.test(value.trim())) out.push(...alts);
     if (last === "prefix") out.push(...(PREFIX[value.toLowerCase()] || []));
     if (last === "type" && key.startsWith("publications")) out.push(...(PUB_TYPES[value.toLowerCase()] || []));

@@ -21,6 +21,13 @@ const cases = [
   ["D.O.B.", "", "", "", "text", "personal.date_of_birth", true],
   ["Nationality", "", "", "", "select", "citizenship.country_of_citizenship", true],
   ["Country of citizenship", "", "", "", "select", "citizenship.country_of_citizenship", true],
+  ["Do you hold dual citizenship?", "citizenship", "dual_citizenship", "", "select", "citizenship.dual_citizenship", false],
+  ["Second nationality", "citizenship", "second_nationality", "country", "select", "citizenship.second_country_of_citizenship", false],
+  ["Country of citizenship #2", "", "", "", "select", "citizenship.second_country_of_citizenship", false],
+  ["Undergraduate minor", "education", "", "", "text", "education.*.minor", true],
+  ["Supervisor", "research", "", "", "text", "research.*.mentor", true],
+  ["Research description", "research", "", "", "textarea", "research.*.description", false],
+  ["Responsibilities", "employment", "", "", "textarea", "employment.*.description", false],
   ["Country of birth", "citizenship", "", "", "select", "citizenship.country_of_birth", true],
   ["Country of residence", "", "", "", "select", "address.country", true],
   ["Country", "", "", "", "select", "address.country", false],
@@ -57,7 +64,7 @@ const cases = [
 ];
 let bad = 0;
 for (const [label, word, name, ac, type, want, auto] of cases) {
-  const f = { label, name, id: "", autocomplete: ac, type, section: word ? { word, sec: { recommender: "recommenders", education: "education", address: "address", citizenship: "citizenship", "other person": "other", publication: "publications" }[word] } : null };
+  const f = { label, name, id: "", autocomplete: ac, type, section: word ? { word, sec: { recommender: "recommenders", research: "research", employment: "employment", education: "education", address: "address", citizenship: "citizenship", "other person": "other", publication: "publications" }[word] } : null };
   const got = GF.pickKey(f, (word ? word + " " : "") + label);
   const key = got ? got.key : null, fills = !!got && got.conf !== "low";
   const ok = key === want && (want === null || fills === auto);

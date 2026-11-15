@@ -240,7 +240,7 @@
   }
   const title = sec => (GF.SECTIONS.find(s => s.id === sec) || {}).title || sec;
   const NAME_KEYS = { education: ["institution", "degree"], employment: ["employer", "title"], recommenders: ["first_name", "last_name"],
-    publications: ["title", "venue"] };
+    publications: ["title", "venue"], research: ["project", "institution"] };
   const entryName = (sec, e) => (NAME_KEYS[sec] || []).map(k => e[k]).filter(Boolean).join(" · ") || "(empty)";
   function isDateKey(path) {
     const parts = path.split("."), sec = GF.SECTIONS.find(s => s.id === parts[0]);
@@ -740,7 +740,7 @@
       const sel = h("select", { "aria-label": `Which ${title(sec).toLowerCase()} entry`, onchange: e => switchEntry(sec, Number(e.target.value)) },
         entries.map((e, i) => Object.values(e).some(Boolean) || i === S.ctx[sec]
           ? h("option", { value: i, selected: i === S.ctx[sec] }, `#${i + 1} ${entryName(sec, e)}`) : null));
-      const ask = { recommenders: "Which recommender?", education: "Which education?", employment: "Which job?", publications: "Which publication?" }[sec];
+      const ask = { recommenders: "Which recommender?", education: "Which education?", employment: "Which job?", publications: "Which publication?", research: "Which research experience?" }[sec];
       bar.append(h("label", { class: "pick" }, ask, sel));
     }
     if (needsActive) {
