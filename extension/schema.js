@@ -94,6 +94,7 @@ GF.SECTIONS = [
   { id: "employment", title: "Work experience", list: 3, fields: [
     { k: "employer", label: "Employer" },
     { k: "title", label: "Job title" },
+    { k: "website", label: "Employer website", type: "url" },
     { k: "description", label: "Responsibilities / accomplishments", type: "textarea" },
     { k: "city", label: "City" },
     { k: "country", label: "Country" },
@@ -216,6 +217,7 @@ GF.RULES = [
   ["application.full_time_months", /\bmonths\b.*\bpost[\s-]college\b.*\bfull[\s-]time\b/i, "low"],
   ["funding.nsf_grfp_applied", /\b(?:applied|apply)\b.*(?:national science foundation|\bnsf\b).*(?:graduate research fellowship|grfp)/i, "low"],
   ["funding.external_funding", /\b(?:external|non[-\s]columbia|outside)\b.*\b(?:fellowships?|scholarships?|aid|funding)\b/i, "low"],
+  ["employment.*.website", /^(?:employment (?:organi[sz]ation(?:'s)? )?|(?:employment )?(?:employer|company)(?:'s)? )(?:web\s?site|web address|url)\b/i, "high"],
   ["employment.*.description", /^employment .*\b(description|responsibilities|duties|accomplishments)\b|\b(?:job description|job responsibilities)\b/i, "low"],
   ["employment.*.start_date", rx(`^${EMP}.*(start|from|begin)`), "high"],
   ["employment.*.end_date", rx(`^${EMP}.*(\\bend\\b|\\bto\\b|until)`), "high"],

@@ -51,13 +51,13 @@ with sync_playwright() as pw:
     sample_pdf(cv)
     settings.locator('#cv-file').set_input_files(str(cv))
     expect(settings.locator('#saved-documents .entry')).to_have_count(2)
-    PROFILE['employment']=[{'employer':'First University','title':'Assistant'},{'employer':'Second Company','title':'Intern'}]
+    PROFILE['employment']=[{'employer':'First University','title':'Assistant'},{'employer':'Second Company','title':'Intern','website':'https://employer.example/'}]
     PROFILE['contact']['linkedin']='https://www.linkedin.com/in/example'
     PROFILE['application']={'academic_discipline':'No','english_waiver':'Yes'}
     PROFILE['funding']={'external_funding':'Example Fellowship','nsf_grfp_applied':'No'}
     sw.evaluate('(profile)=>chrome.storage.local.set({profile,settings:{autoFill:true}})',PROFILE)
     page=ctx.new_page()
-    sample='''<h1>Resume</h1><form><label for="cv">Upload CV</label><input id="cv" type="file" accept=".pdf"><label for="link">LinkedIn</label><input id="link"><fieldset><legend>Have you ever been issued discipline at an educational institution?</legend><label><input type="radio" name="discipline" value="yes">Yes</label><label><input id="discipline" type="radio" name="discipline" value="no">No</label></fieldset><fieldset><legend>Have you been convicted of a crime?</legend><label><input type="radio" name="crime" value="yes">Yes</label><label><input id="crime" type="radio" name="crime" value="no">No</label></fieldset></form><div id="jobs"></div><script>function addJob(){document.querySelector('#jobs').innerHTML='<div role="dialog" aria-label="Add Employer"><form><label for="org">Organization Name</label><input id="org"><label for="job">Position/Title</label><input id="job"></form></div>'}addJob()</script>'''
+    sample='''<h1>Resume</h1><form><label for="cv">Upload CV</label><input id="cv" type="file" accept=".pdf"><label for="link">LinkedIn</label><input id="link"><fieldset><legend>Have you ever been issued discipline at an educational institution?</legend><label><input type="radio" name="discipline" value="yes">Yes</label><label><input id="discipline" type="radio" name="discipline" value="no">No</label></fieldset><fieldset><legend>Have you been convicted of a crime?</legend><label><input type="radio" name="crime" value="yes">Yes</label><label><input id="crime" type="radio" name="crime" value="no">No</label></fieldset></form><div id="jobs"></div><script>function addJob(){document.querySelector('#jobs').innerHTML='<div role="dialog" aria-label="Add Employer"><form><label for="org">Organization Name</label><input id="org"><label for="job">Position/Title</label><input id="job"><label for="site">Website</label><input id="site" type="url"></form></div>'}addJob()</script>'''
     page.route(base+'/local-tests',lambda route:route.fulfill(body=sample,content_type='text/html'))
     page.goto(base+'/local-tests')
     open_gradfill(sw)
@@ -69,6 +69,7 @@ with sync_playwright() as pw:
     expect(picker).to_have_value('')
     picker.select_option('1')
     expect(page.locator('#org')).to_have_value('Second Company')
+    expect(page.locator('#site')).to_have_value('https://employer.example/')
     page.evaluate('addJob()')
     panel(page).get_by_role('button',name='Rescan page').click()
     expect(picker).to_have_value('')
