@@ -141,7 +141,7 @@ var GF = globalThis.GF;
       }
     }
     if (last === "sex") out.push(...(SEX[norm(value)] || []));
-    if (/^(us_citizen|us_permanent_resident|visa_required|has_degree|dual_citizenship)$/.test(last)) out.push(...(YESNO[norm(value)] || []));
+    if (/^(us_citizen|us_permanent_resident|visa_required|has_degree|dual_citizenship|academic_discipline|english_waiver|columbia_undergrad|columbia_transfer|columbia_masters|nsf_grfp_applied)$/.test(last)) out.push(...(YESNO[norm(value)] || []));
     if (last === "degree") for (const [rx, alts] of DEGREES) if (rx.test(value.trim())) out.push(...alts);
     if (last === "prefix") out.push(...(PREFIX[value.toLowerCase()] || []));
     if (last === "type" && key.startsWith("publications")) out.push(...(PUB_TYPES[value.toLowerCase()] || []));

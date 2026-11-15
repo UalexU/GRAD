@@ -27,6 +27,16 @@
           Turn this off to review everything in the panel before anything is typed.</small></span></label>
   </section>
   <form id="form" autocomplete="off"></form>
+  <section class="card" aria-labelledby="documents-heading">
+    <h2 id="documents-heading">Local application PDFs</h2>
+    <p class="muted">Save a résumé/CV or transcripts here. GradFill will ask which PDF to attach on each portal. These PDFs stay in this browser's extension storage and are excluded from profile backups.</p>
+    <div class="row">
+      <label>Résumé / CV <input type="file" id="cv-file" accept=".pdf,application/pdf"></label>
+      <label>Transcript PDFs <input type="file" id="transcript-files" accept=".pdf,application/pdf" multiple></label>
+    </div>
+    <p id="document-status" role="status"></p>
+    <div id="saved-documents"></div>
+  </section>
   <section class="card" id="checks" aria-live="polite"></section>
   <section class="card">
     <h2>Fields you taught GradFill</h2>
@@ -50,5 +60,6 @@
 </footer>
 <script src="schema.js"></script>
 <script src="options.js"></script>
+<script src="documents.mjs" type="module"></script>
 </body>
 </html>

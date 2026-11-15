@@ -4,7 +4,7 @@ Two pieces that work together, with all your data kept **only in your own browse
 
 - **GradFill**: a Chrome / Edge / Brave extension that fills graduate application forms from
   your saved details, **one page at a time, only after you review it**. It never clicks Next or
-  Submit, never types passwords, and never uploads files.
+  Submit or types passwords. It attaches a saved PDF only when you choose and confirm the file for a recognized upload field.
 - **GradTrack**: a tracker site (https://harshita-bose.github.io/GRAD/) for deadlines, status,
   fees, documents and recommenders. Its data lives inside the extension, and GradFill logs each page
   it fills there.
@@ -28,6 +28,14 @@ Use the Add button at the end of Education, Work experience, Research experience
 These fields reflect application guidance from [Oxford](https://www.ox.ac.uk/admissions/graduate/application-guide/your-details/about-you), [Stanford](https://gradadmissions.stanford.edu/apply/application-overview), and [WashU](https://physics.washu.edu/what-does-graduate-application-look).
 
 Education, work and research start/end dates accept YYYY-MM or YYYY-MM-DD. Month-only entries fill month/year fields. If the portal needs a day or a full date, add it manually from your records.
+
+## Application answers and local PDFs
+
+Settings can store LinkedIn, formal REU participation, external funding, education codes and earned credits. English proficiency and academic discipline answers are optional and reviewed by default. You can opt in to autofilling a saved No for clearly matched academic discipline questions. Criminal history stays manual. Review school codes, credit units, and waiver eligibility for the particular program.
+
+Under Local application PDFs, choose a CV and any transcripts. Files are capped at 4 MB each and share the browser's extension-storage quota. The local reader looks for explicitly labeled earned totals in text PDFs and can report Lafayette units and their semester-hour equivalent. Verify the units and enter the chosen value under Education. Scanned or unfamiliar transcripts may need manual entry.
+
+Use the recognized upload card in GradFill to choose a local PDF and confirm the destination. The portal may upload it immediately. PDFs are outside profile backups and can be removed from Settings. The local PDF reader uses the bundled PDF.js 6.5.438 legacy build and Apache-2.0 license.
 
 ## Updating GradFill without losing your details
 
@@ -68,7 +76,7 @@ program page"** until you tick *confirmed* in Edit. Tick items off straight from
      option, assumed date format, the field already holds something else…). The panel explains the
      doubt. Tick the row, or edit its value, and press **Fill** to use it. Otherwise fill it yourself.
    - Never filled: passwords, CAPTCHAs, demographics, conduct questions, agreements and certifications,
-     payments, checkboxes and file uploads. The panel lists them for you.
+     payments, and sensitive checkboxes. The panel lists them for you. Some application answers and file fields offer a separate review action.
 3. Read the page, then click the site's own **Continue / Next** yourself. Click GradFill again on the
    next page.
 
@@ -107,10 +115,7 @@ there is sent anywhere:
 - **Questions that depend on earlier answers** (Region after Country, extra questions that appear)
   are filled in follow-up rounds right after, when "fill straight away" is on. A dropdown still on the
   page's own preset (e.g. "United States") is replaced; a choice you made is never overwritten without asking.
-- **Lists of entries (education, jobs, recommenders, publications)** never make you wait. GradFill
-  fills an entry straight away: your most recent degree for education, otherwise the first one you
-  saved. The panel's **"Which education? / Which recommender? / Which publication?"** dropdown
-  switches it, and the page is refilled with that entry.
+- **Lists of entries (education, jobs, research, recommenders, publications)** can be switched from the panel. On a new job or research form with multiple saved entries, choose one before filling. A numbered heading can still identify an entry directly.
 - **Publications:** save papers in settings (title, conference / journal, date, type, authors, DOI,
   status). Pick one in the panel and GradFill fills the title, conference title, date and type.
 - **"Add Institution" forms** use your post-secondary degree. If exactly one saved education entry is a

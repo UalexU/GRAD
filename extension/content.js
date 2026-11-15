@@ -8,6 +8,8 @@
     profile: null, tracker: null, appId: "", rows: [], unlocked: false, filledOnce: false,
     ctx: Object.fromEntries(GF.LIST_SECTIONS.map(s => [s, 0])),
     active: null, // list section that bare "start/end date" fields refer to
+    documents: [],
+    entryForms: {},
     chosen: {}, // list sections whose entry you picked in the panel on this page
     auto: {},   // list sections whose entry GradFill could work out (your only post-secondary degree)
     ours: new WeakMap(), // field → value GradFill typed there, so switching entries can replace it
@@ -131,8 +133,7 @@
     return "";
   }
   function questionLabel(el) {
-    const fs = el.closest("fieldset"); if (fs) { const lg = fs.querySelector("legend"); if (lg) return lg.innerText; }
-    const q = el.closest(".form_question, .question, .form-group, .field, tr");
+    const q = el.closest(".form_question, .question, .form-group, .field, fieldset, tr");
     if (q) { const l = q.querySelector(".form_label, legend, th, .label"); if (l) return l.innerText; }
     return el.getAttribute("aria-label") || "";
   }
@@ -185,6 +186,12 @@
       }
       out.push(f);
     }
+    const employmentDateGroups = Map.groupBy(out.filter(f =>
+      f.tag === "select" && /\bdates? of employment\b/i.test(f.label)), f => f.el.closest(WRAP));
+    for (const [box, fields] of employmentDateGroups) {
+      if (!box || !/\bto\b/i.test(box.innerText) || fields.map(datePart).join(",") !== "month,year,month,year") continue;
+      fields.forEach((f, index) => { f.label = "Employment " + (index < 2 ? "start" : "end") + " date › " + datePart(f); });
+    }
     // A separate "country code" box in the same question means the phone box wants the number alone.
     for (const f of out) {
       if (!/country ?code|dial(ing)? code|calling code|\bisd\b/i.test(f.label || "")) continue;
@@ -231,6 +238,11 @@
     if (a === "*") {
       const fromHeading = sect && sect.sec === sec && sect.index != null && sect.index < section.length;
       const i = fromHeading ? sect.index : S.ctx[sec] || 0, entry = section[i];
+      const needsEntry = ["employment", "research"].includes(sec) && !fromHeading &&
+        !S.chosen[sec] && section.filter(item => Object.values(item).some(Boolean)).length > 1;
+      if (needsEntry) return { list: sec, err: "Choose which " + title(sec).toLowerCase() + " entry to use above." };
+      if (b === "gpa" && /gpa on (?:a |the )?4(?:\.0+)? scale/i.test(f.label) && Number(entry?.gpa_scale) !== 4)
+        return { list: sec, err: "This field requires a GPA on a 4.0 scale. Confirm the school’s instructions." };
       const v = entry && pick(entry, b);
       const base = { list: sec, index: i, fromHeading, path: `${sec}.${i}.${b}` };
       return v ? { ...base, value: String(v) } : { ...base, err: `Empty in your details (${title(sec)} #${i + 1}${fromHeading ? `, from the heading “${sect.heading}”` : ""})` };
@@ -326,23 +338,57 @@
     return [h("option", { value: "" }, "— automatic —"), h("option", { value: "-", selected: current === "-" }, "— leave this field alone —"), ...groups];
   }
 
+  function applicationAnswer(f, label, yesNo) {
+    const boolean = (f.type === "radio" && yesNo) || (f.tag === "select" && f.options.filter(o => /^(yes|no)$/i.test(o.text)).length === 2);
+    if (!boolean || f.section?.sec === "other" || GF.OTHER_PERSON.test(label) ||
+        /\b(?:agree|certif\w*|attest\w*|consent|request|apply for)\b/i.test(label)) return null;
+    const academic = /\b(?:academic|educational institution|college|university|school)\b/i.test(label);
+    const discipline = /\b(?:disciplin\w*|probation|suspend\w*|dismiss\w*|expel\w*)\b/i.test(label);
+    if (academic && discipline && !/\b(?:criminal\w*|arrest\w*|misdemeanou?r|felon\w*|crime|convict\w*|guilty|charg\w*)\b/i.test(label))
+      return { key: "application.academic_discipline", conf:
+        S.profile?.application?.academic_discipline === "No" && S.profile.application.auto_academic_no === "Yes"
+          ? "discipline-opt-in" : "review" };
+    if (location.hostname === "apply.engineering.columbia.edu" && /\b(?:united states|australia|canada)\b/i.test(label)) {
+      if (/\btransfer\b|\bjoint degree\b/i.test(label)) return { key: "application.columbia_transfer", conf: "review" };
+      if (/\bundergraduate degree\b/i.test(label)) return { key: "application.columbia_undergrad", conf: "review" };
+      if (/\bmaster.s degree\b/i.test(label)) return { key: "application.columbia_masters", conf: "review" };
+    }
+    if (/\b(?:exempt|waived|not required)\b/i.test(label) &&
+        /\b(?:english (?:language )?(?:proficiency|test)|toefl|ielts)\b/i.test(label))
+      return { key: "application.english_waiver", conf: "review" };
+    return null;
+  }
+
   function planField(f) {
     const label = f.label || f.name || "(unlabelled field)";
     const row = { f, label, key: null, value: "", status: "none", notes: [], soft: [], approved: false, list: null };
     if (f.type === "password") return { ...row, status: "manual", notes: ["Password — always typed by you"] };
     const why = manualReason(label) || (f.options && f.group ? f.options.map(o => manualReason(o.text)).find(Boolean) : null);
-    if (why) return { ...row, status: "manual", notes: [`Never filled by GradFill: ${why}`] };
     const yesNo = f.group && f.options.length === 2 && f.options.every(o => /^(yes|no)\b/i.test(o.text));
-    if (f.type === "checkbox" && !yesNo) return { ...row, status: "manual", notes: ["Checkbox — tick it yourself if it applies"] };
+    const special = applicationAnswer(f, label, yesNo);
+    if (why && !special) return { ...row, status: "manual", notes: [`Never filled by GradFill: ${why}`] };
+    if (f.type === "checkbox" && !yesNo) {
+      const sponsor = /\b(?:scholarship|award)\b.*\b(?:recipient|managed by)\b|\brecipient\b.*\bscholarship\b/i.test(label) &&
+        S.profile?.funding?.scholarship_sponsor;
+      return { ...row, status: "manual", notes: [sponsor ?
+        "Saved scholarship sponsor: " + sponsor + ". Select the matching box yourself." :
+        "Checkbox — tick it yourself if it applies"] };
+    }
     if (f.type === "file") {
       const doc = GF.DOCS.find(([rx]) => rx.test(label));
+      const kind = doc?.[1] === "Transcript" ? "transcript" :
+        doc?.[1] === "CV / résumé" || (!doc && f.section?.sec === "cv") ? "cv" : null;
+      const accept = f.el.accept.toLowerCase().split(",").map(value => value.trim()).filter(Boolean);
+      if (kind && (!accept.length || accept.some(value => [".pdf", "application/pdf", "application/*", "*/*"].includes(value)))) {
+        return { ...row, status: "upload", documentKind: kind, notes: ["Choose the PDF you want to send to this portal."] };
+      }
       return { ...row, status: "upload", notes: [doc ? `Upload your ${doc[1]} here yourself` : "File upload — attach the right document yourself"] };
     }
 
     const ctxLabel = (f.section ? f.section.word + " " : "") + (f.label || "");
     const taught = S.maps[learnKey(f)];
     if (taught === "-") { row.taught = true; row.notes.push("You chose to leave this field alone on this site"); return row; }
-    const pickd = taught ? { key: taught, conf: "taught" } : GF.pickKey(f, ctxLabel);
+    const pickd = special || (taught ? { key: taught, conf: "taught" } : GF.pickKey(f, ctxLabel));
     if (!pickd && ((f.section && f.section.sec === "other") || GF.OTHER_PERSON.test(label))) {
       row.notes.push("Asks about someone else (e.g. an emergency contact) — GradFill never puts your details here");
       return row;
@@ -361,6 +407,9 @@
     const notes = [], soft = [];
     let value = r.value, variants = GF.variants(row.key, value, f);
     if (conf === "low") notes.push("Not sure this question asks for this detail — check, or choose another below");
+    if (conf !== "discipline-opt-in" && /^(?:funding\.|application\.)/.test(key))
+      notes.push("Review this answer for this application before filling.");
+    if (conf === "discipline-opt-in") soft.push("Used your opted-in No. Verify it covers the full question.");
     if (conf === "verify") soft.push(`Matched using ${pickd.why}`);
     if (row.taught) soft.push("Matched the way you taught GradFill on this site");
     if (r.list && r.fromHeading) soft.push(`From ${title(r.list)} #${r.index + 1}, because of the heading “${f.section.heading}”`);
@@ -439,7 +488,15 @@
   }
 
   function plan() {
-    // Which saved entry to use until you pick another in the panel: never ask, fill straight away.
+    const fields = scan();
+    for (const sec of ["employment", "research"]) {
+      const first = fields.find(field => field.section?.sec === sec)?.el;
+      if (first !== S.entryForms[sec]) {
+        S.entryForms[sec] = first;
+        delete S.chosen[sec];
+      }
+    }
+    // Choose defaults for education and single-entry sections.
     // Education: your most recent degree (not Class XII / high school). Others: the first one you saved.
     S.auto = {};
     for (const sec of GF.LIST_SECTIONS) {
@@ -450,7 +507,7 @@
       S.auto[sec] = (degree || filled[0])[1];
       S.ctx[sec] = S.auto[sec];
     }
-    S.rows = scan().map(planField);
+    S.rows = fields.map(planField);
     S.rows.forEach((r, i) => (r.n = i + 1));
     // a single "Street" box and no line-2 box on the page: both address lines go in that one box
     for (const r of S.rows) {
@@ -527,6 +584,7 @@
   }
 
   async function fillRow(r) {
+    if (!r.f.el.isConnected) return "This form changed. Rescan before filling.";
     const { f } = r, el = f.el;
     if (!el.isConnected) return "Field disappeared from the page — rescan";
     if (f.group) {
@@ -741,9 +799,12 @@
       // rows whose entry comes from a numbered heading ("Recommender 2") don't follow the picker
       if (S.rows.filter(r => r.list === sec).every(r => r.f.section && r.f.section.sec === sec && r.f.section.index != null)) continue;
       const entries = S.profile[sec] || [];
+      const needsChoice = ["employment", "research"].includes(sec) && !S.chosen[sec] &&
+        entries.filter(entry => Object.values(entry).some(Boolean)).length > 1;
       const sel = h("select", { "aria-label": `Which ${title(sec).toLowerCase()} entry`, onchange: e => switchEntry(sec, Number(e.target.value)) },
+        needsChoice ? h("option", { value: "", selected: true, disabled: true }, "— choose an entry —") : null,
         entries.map((e, i) => Object.values(e).some(Boolean) || i === S.ctx[sec]
-          ? h("option", { value: i, selected: i === S.ctx[sec] }, `#${i + 1} ${entryName(sec, e)}`) : null));
+          ? h("option", { value: i, selected: !needsChoice && i === S.ctx[sec] }, `#${i + 1} ${entryName(sec, e)}`) : null));
       const ask = { recommenders: "Which recommender?", education: "Which education?", employment: "Which job?", publications: "Which publication?", research: "Which research experience?" }[sec];
       bar.append(h("label", { class: "pick" }, ask, sel));
     }
@@ -769,6 +830,41 @@
     panel.append(h("div", { class: "foot" },
       h("button", { class: "act sec", onclick: replan }, "Rescan page"),
       h("button", { class: "act", disabled: !n, onclick: doFill }, `Fill ${n} ticked field${n === 1 ? "" : "s"}`)));
+  }
+
+  function documentPicker(row) {
+    const files = S.documents.filter(file => file.kind === row.documentKind);
+    if (!files.length) return h("p", { class: "soft" }, "Add a PDF in GradFill Settings, or use the page’s own file picker.");
+    const choice = h("select", { "aria-label": "PDF for " + row.label },
+      h("option", { value: "" }, "— choose a saved PDF —"),
+      files.map(file => h("option", { value: file.id }, file.name)));
+    const feedback = h("p", { class: "soft", role: "status" });
+    const button = h("button", { class: "act sec", type: "button", disabled: true, onclick: async () => {
+      button.disabled = true;
+      try {
+        const { documents } = await chrome.storage.local.get("documents");
+        const doc = documents?.find(file => file.id === choice.value && file.kind === row.documentKind);
+        const input = row.f.el;
+        if (!doc || !input.isConnected || input.disabled || input.type !== "file")
+          throw new Error("This upload field changed. Rescan and select the PDF again.");
+        if (input.files?.length) throw new Error("This field already has a file. Remove it on the page before replacing it.");
+        if (!window.confirm("Attach " + doc.name + " to " + location.hostname + "?\nThe portal may upload it immediately.")) return;
+        if (!input.isConnected || input.disabled || input.files?.length)
+          throw new Error("This upload field changed. Rescan before attaching.");
+        const transfer = new DataTransfer();
+        transfer.items.add(new File([Uint8Array.fromBase64(doc.data)], doc.name, { type: "application/pdf" }));
+        input.files = transfer.files;
+        if (input.files?.[0]?.name !== doc.name) throw new Error("The field did not accept the file.");
+        fire(input, "input", "change");
+        feedback.textContent = "Selected " + doc.name + ". Check that the portal accepted it.";
+      } catch (error) {
+        feedback.textContent = error.message;
+      } finally {
+        button.disabled = !choice.value;
+      }
+    } }, "Attach selected PDF");
+    choice.addEventListener("change", () => { button.disabled = !choice.value; });
+    return h("div", { class: "val" }, choice, button, feedback);
   }
 
   function card(r) {
@@ -799,6 +895,7 @@
       }
       el.append(h("div", { class: "val" }, input));
     }
+    if (r.documentKind) el.append(documentPicker(r));
     if (r.status !== "manual" && r.status !== "upload") {
       const current = S.maps[learnKey(r.f)] || "";
       el.append(h("details", { class: "teach", open: !!current && current !== "" && r.status === "none" },
@@ -834,6 +931,7 @@
 
   // Picking another recommender / degree / job: re-read the page and fill that entry instead.
   async function switchEntry(sec, i) {
+    if (S.entryForms[sec] && !S.entryForms[sec].isConnected) { replan(); return; }
     S.ctx[sec] = i;
     S.chosen[sec] = true;
     S.rows.forEach(r => mark(elOf(r), ""));
@@ -877,11 +975,12 @@
   };
 
   async function load() {
-    const got = await chrome.storage.local.get(["profile", "tracker", "settings", "mappings"]);
+    const got = await chrome.storage.local.get(["profile", "tracker", "settings", "mappings", "documents"]);
     S.allMaps = got.mappings || {};
     S.maps = S.allMaps[location.hostname] || {};
     S.autoFill = (got.settings || {}).autoFill !== false; // on unless you turn it off in settings
     S.profile = got.profile || null;
+    S.documents = (got.documents || []).map(({ id, name, kind }) => ({ id, name, kind }));
     S.tracker = got.tracker || null;
     S.appId = matchApp();
   }
@@ -899,6 +998,12 @@
     show();
     if (S.autoFill && hasProfile()) await doFill(); else render();
   }
+  document.addEventListener("focusin", event => {
+    if (!host.isConnected || !event.target.matches?.("input, select, textarea")) return;
+    const modal = event.target.closest(DIALOG);
+    const section = modal && classify(clean(dialogTitle(modal)))?.sec;
+    if (["employment", "research"].includes(section) && (!S.entryForms[section] || !modal.contains(S.entryForms[section]))) replan();
+  });
   window.__gradfill = { show: start, state: S, fill: doFill, render };
   start();
 })();

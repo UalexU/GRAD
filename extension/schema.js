@@ -20,6 +20,7 @@ GF.SECTIONS = [
   { id: "contact", title: "Contact", fields: [
     { k: "email", label: "Email", type: "email" },
     { k: "alternate_email", label: "Alternate email", type: "email" },
+    { k: "linkedin", label: "LinkedIn profile URL", type: "url" },
     { k: "phone", label: "Phone", type: "tel", hint: "With country code, e.g. +91 98…" },
   ] },
   { id: "address", title: "Permanent address", fields: [
@@ -45,6 +46,9 @@ GF.SECTIONS = [
   ] },
   { id: "education", title: "Education", list: 3, hint: "#1 = most recent", fields: [
     { k: "institution", label: "Institution" },
+    { k: "school_code", label: "Application school code", hint: "Use the code type the portal asks for. FAFSA, CEEB and ETS codes may differ." },
+    { k: "credits", label: "Earned credits for this portal", hint: "Verify whether it wants course units or semester hours." },
+    { k: "recalculated_gpa", label: "Recalculated GPA (if required)", hint: "Only enter a value you calculated as directed by the school." },
     { k: "city", label: "City" },
     { k: "country", label: "Country" },
     { k: "state", label: "State / province" },
@@ -55,6 +59,21 @@ GF.SECTIONS = [
     { k: "end_date", label: "End / expected date", type: "date", allowMonth: true },
     { k: "gpa", label: "GPA", hint: "Exactly as on your transcript — never converted" },
     { k: "gpa_scale", label: "GPA scale", hint: "e.g. 10" },
+  ] },
+  { id: "application", title: "Application answers", fields: [
+    { k: "reu", label: "Formal REU program name and location", hint: "Leave blank if you did not participate in a formal REU." },
+    { k: "academic_discipline", label: "Academic disciplinary history / pending action", options: YES_NO, hint: "Select No to use it as your suggested answer. You review it on each page." },
+    { k: "auto_academic_no", label: "Automatically fill my saved No on academic discipline questions?", options: YES_NO, hint: "Off until you select Yes. Also requires automatic filling to be on." },
+    { k: "english_waiver", label: "English test not required for this application?", options: YES_NO, hint: "Confirm this program’s policy before using this answer." },
+    { k: "columbia_undergrad", label: "Columbia Engineering: Undergraduate degree in a listed country?", options: YES_NO },
+    { k: "columbia_transfer", label: "Columbia Engineering: Transfer or joint degree from outside the listed countries?", options: YES_NO },
+    { k: "columbia_masters", label: "Columbia Engineering: Master’s degree in a listed country?", options: YES_NO },
+    { k: "full_time_months", label: "Months of post-college full-time work by enrollment", hint: "Depends on your planned start term. Review for each application." },
+  ] },
+  { id: "funding", title: "Funding", fields: [
+    { k: "external_funding", label: "External fellowships, scholarships or aid you are applying for", type: "textarea" },
+    { k: "nsf_grfp_applied", label: "Applied for the NSF Graduate Research Fellowship?", options: YES_NO },
+    { k: "scholarship_sponsor", label: "Scholarship sponsor(s) of awards received", hint: "For reference when selecting sponsor checkboxes." },
   ] },
   { id: "tests", title: "Test scores", fields: [
     { k: "gre_verbal", label: "GRE verbal" },
@@ -192,6 +211,11 @@ GF.RULES = [
   ["research.*.institution", /^research .*\b(institution|organization|organisation|laboratory|lab name|university)\b/i, "high"],
   ["research.*.project", /^research .*\b(project title|project name|title of project|title|name of research project)\b/i, "high"],
   ["research.*.description", /^research .*\b(description|summary)\b|\bdescribe your (?:previous |prior )?research experience\b/i, "low"],
+  ["contact.linkedin", /\blinked\s?in\b/i, "high"],
+  ["application.reu", /\bresearch experiences? for undergraduates\b|\breu\b.*\b(program|experience|participat)/i, "low"],
+  ["application.full_time_months", /\bmonths\b.*\bpost[\s-]college\b.*\bfull[\s-]time\b/i, "low"],
+  ["funding.nsf_grfp_applied", /\b(?:applied|apply)\b.*(?:national science foundation|\bnsf\b).*(?:graduate research fellowship|grfp)/i, "low"],
+  ["funding.external_funding", /\b(?:external|non[-\s]columbia|outside)\b.*\b(?:fellowships?|scholarships?|aid|funding)\b/i, "low"],
   ["employment.*.description", /^employment .*\b(description|responsibilities|duties|accomplishments)\b|\b(?:job description|job responsibilities)\b/i, "low"],
   ["employment.*.start_date", rx(`^${EMP}.*(start|from|begin)`), "high"],
   ["employment.*.end_date", rx(`^${EMP}.*(\\bend\\b|\\bto\\b|until)`), "high"],
@@ -200,6 +224,11 @@ GF.RULES = [
   ["employment.*.employer", /employer|company|organi[sz]ation( name)?$|^employment .*\bname\b/i, "high"],
   ["employment.*.title", /job title|\bposition\b|\brole\b|designation|^employment .*\btitle\b/i, "high"],
 
+  ["education.*.school_code", /\bundergraduate (?:school|institution|college) code\b/i, "low"],
+  ["education.*.credits", /^(?:education )?(?:credit hours(?:\s*\/\s*points)?|credit points|earned credits|total credits earned|semester credit hours)$/i, "low"],
+  ["education.*.recalculated_gpa", /\b(?:recalculated|converted|normalized) gpa\b/i, "low"],
+  ["education.*.gpa", /\b(?:gpa|grade point average) on (?:a |the )?4(?:\.0+)? scale\b/i, "high"],
+  ["education.*.country", /\bcountry of (?:the )?undergraduate (?:institution|school|college)\b/i, "high"],
   ["education.*.has_degree", rx(`^${EDU}.*((receive|receiving|earn|earned|awarded|conferr|complet)\\w*.*\\bdegree\\b|\\bdegree\\b.*(received|awarded|conferred|expected|completed))`), "high"],
   ["education.*.degree", rx(`^${EDU}.*(level of study|degree level|level of (education|degree)|type of degree|degree type|program level)`), "high"],
   ["education.*.start_date", rx(`^${EDU}.*(start|from|begin|entr(y|ance)|attended from)`), "high"],
@@ -262,6 +291,7 @@ GF.OTHER_PERSON = /emergency|parent|guardian|father|mother|next of kin|spouse|pa
 GF.HEADINGS = [
   ["other", /emergency|parent|guardian|father|mother|family (information|details|background)|next of kin|spouse|sponsor|financial support/i, "other person"],
   ["recommenders", /recommend|referee|reference|evaluator|letter writer/i, "recommender"],
+  ["cv", /^(?:resume|résumé|cv|resume\/cv|curriculum vitae)$/i, "cv"],
   ["publications", /publication|\bpapers?\b|research output|conference|journal|presentations?|preprint|poster/i, "publication"],
   ["research", /research experience|research history|research project|research activities/i, "research"],
   ["education", /education|academic (history|record|background)|institution|colleges?( attended)?$|universit(y|ies)( attended)?$|schools? attended|prior degree/i, "education"],
