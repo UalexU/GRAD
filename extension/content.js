@@ -256,7 +256,8 @@
       if (p === "mm" || p === "month") return "month";
       if (p === "dd" || p === "day") return "day";
       if (p === "yyyy" || p === "year" || f.maxlength === 4) return "year";
-      if (/\byear\b/i.test(f.label) && !/month|day|date|mm|dd/i.test(f.label + f.placeholder)) return "year";
+      if (/\byear\b/i.test(f.label) && !/month|day|mm|dd/i.test(f.label + f.placeholder)) return "year";
+      if (/\bmonth\b/i.test(f.label) && !/year|day|yy|dd/i.test(f.label + f.placeholder)) return "month";
       return null;
     }
     const t = f.options.map(o => norm(o.text)).filter(Boolean);
@@ -270,18 +271,21 @@
 
   // Returns {value | candidates, note}
   function formatDate(iso, f) {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-    if (!m) return { note: `Your saved date "${iso}" is not a valid date` };
+    const m = /^(\d{4})-(0[1-9]|1[0-2])(?:-(0[1-9]|[12]\d|3[01]))?$/.exec(iso);
+    if (!m) return { note: "Your saved date is not valid; use YYYY-MM or YYYY-MM-DD" };
     const [, y, mo, d] = m, mi = Number(mo) - 1;
-    if (f.type === "date") return { value: iso };
+    const missingDay = { note: "Only the month and year are saved; enter the exact day yourself" };
+    if (f.type === "date") return d ? { value: iso } : missingDay;
     if (f.type === "month") return { value: `${y}-${mo}` };
     const part = datePart(f);
     if (part === "month") return { candidates: [MONTHS[mi], MONTHS[mi].slice(0, 3), mo, String(Number(mo))] };
-    if (part === "day") return { candidates: [d, String(Number(d))] };
+    if (part === "day") return d ? { candidates: [d, String(Number(d))] } : missingDay;
     if (part === "year") return f.tag === "select" ? { candidates: [y] } : { value: y };
     if (f.tag === "select") return { note: "Date dropdown not understood — choose it yourself" };
     const byHint = GF.formatDateByHint(iso, `${f.placeholder} ${f.label} ${f.hintText || ""}`);
     if (byHint) return { value: byHint };
+    if (/\bmonth\b.*\byear\b/i.test(f.label) && !/\bday\b|\bdd\b/i.test([f.label, f.placeholder, f.hintText].join(" "))) return { value: mo + "/" + y };
+    if (!d) return missingDay;
     return { value: `${mo}/${d}/${y}`, note: "The form does not say which date format it wants — assumed U.S. MM/DD/YYYY" };
   }
 

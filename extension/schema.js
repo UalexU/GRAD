@@ -51,8 +51,8 @@ GF.SECTIONS = [
     { k: "degree", label: "Degree", hint: "e.g. B.Tech" },
     { k: "major", label: "Major / field" },
     { k: "minor", label: "Academic minor" },
-    { k: "start_date", label: "Start date", type: "date" },
-    { k: "end_date", label: "End / expected date", type: "date" },
+    { k: "start_date", label: "Start date", type: "date", allowMonth: true },
+    { k: "end_date", label: "End / expected date", type: "date", allowMonth: true },
     { k: "gpa", label: "GPA", hint: "Exactly as on your transcript — never converted" },
     { k: "gpa_scale", label: "GPA scale", hint: "e.g. 10" },
   ] },
@@ -78,15 +78,15 @@ GF.SECTIONS = [
     { k: "description", label: "Responsibilities / accomplishments", type: "textarea" },
     { k: "city", label: "City" },
     { k: "country", label: "Country" },
-    { k: "start_date", label: "Start date", type: "date" },
-    { k: "end_date", label: "End date", type: "date" },
+    { k: "start_date", label: "Start date", type: "date", allowMonth: true },
+    { k: "end_date", label: "End date", type: "date", allowMonth: true },
   ] },
   { id: "research", title: "Research experience", list: 1, fields: [
     { k: "project", label: "Project title" },
     { k: "institution", label: "Institution / lab" },
     { k: "mentor", label: "Research supervisor / mentor" },
-    { k: "start_date", label: "Start date", type: "date" },
-    { k: "end_date", label: "End date", type: "date" },
+    { k: "start_date", label: "Start date", type: "date", allowMonth: true },
+    { k: "end_date", label: "End date", type: "date", allowMonth: true },
     { k: "description", label: "Research description", type: "textarea" },
   ] },
   { id: "publications", title: "Publications", list: 6, hint: "Papers, conference talks, posters, preprints", fields: [
@@ -251,8 +251,8 @@ GF.RULES = [
   ["address.country", /country/i, "low"],
 
   // Bare dates only make sense for the list entry chosen in the panel.
-  ["*.start_date", /\b(start|begin|from)\b.*\bdate\b|\bdate\b.*\b(start|began|from)\b|attended from|^(dates? )?from$/i, "low"],
-  ["*.end_date", /\b(end|until|to)\b.*\bdate\b|\bdate\b.*\b(end|ended|to|until)\b|graduation date|date of graduation|completion date|date (conferred|awarded)|attended to|^(dates? )?to$/i, "low"],
+  ["*.start_date", /\b(start(?:ing)?|begin(?:ning)?|from)\b.*\b(date|month|year)\b|\bdate\b.*\b(start|began|from)\b|attended from|^(dates? )?from$/i, "low"],
+  ["*.end_date", /\b(end(?:ing)?|until|to)\b.*\b(date|month|year)\b|\bdate\b.*\b(end|ended|to|until)\b|graduation date|date of graduation|completion date|date (conferred|awarded)|attended to|^(dates? )?to$/i, "low"],
 ];
 
 // Questions about someone else: never answered with your details.

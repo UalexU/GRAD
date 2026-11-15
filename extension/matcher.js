@@ -168,7 +168,11 @@ var GF = globalThis.GF;
     const [y, mo, d] = iso.split("-");
     const parts = { dd: d, mm: mo, yyyy: y, yy: y.slice(2) };
     const three = /\b(dd|mm|yyyy|yy)\s*([\/\-. ])\s*(dd|mm|yyyy|yy)\s*\2\s*(dd|mm|yyyy|yy)\b/i.exec(hint);
-    if (three) { const [, a, sep, b, c] = three; return [a, b, c].map(p => parts[p.toLowerCase()]).join(sep); }
+    if (three) {
+      const [, a, sep, b, c] = three;
+      const values = [a, b, c].map(p => parts[p.toLowerCase()]);
+      return values.every(Boolean) ? values.join(sep) : null;
+    }
     const two = /\b(mm|yyyy|yy)\s*([\/\-. ])\s*(mm|yyyy|yy)\b/i.exec(hint);
     if (two) { const [, a, sep, b] = two; return [a, b].map(p => parts[p.toLowerCase()]).join(sep); }
     return null;

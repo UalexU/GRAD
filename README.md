@@ -27,6 +27,8 @@ Use the Add button at the end of Education, Work experience, Research experience
 
 These fields reflect application guidance from [Oxford](https://www.ox.ac.uk/admissions/graduate/application-guide/your-details/about-you), [Stanford](https://gradadmissions.stanford.edu/apply/application-overview), and [WashU](https://physics.washu.edu/what-does-graduate-application-look).
 
+Education, work and research start/end dates accept YYYY-MM or YYYY-MM-DD. Month-only entries fill month/year fields. If the portal needs a day or a full date, add it manually from your records.
+
 ## Updating GradFill without losing your details
 
 Your details and tracker are stored inside the extension. **Clicking "Remove" on

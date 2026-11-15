@@ -16,6 +16,7 @@ function h(tag, attrs, ...kids) {
 
 function input(f, value, onchange) {
   const attrs = { "data-k": f.k, oninput: e => { onchange(e.target.value.trim()); dirty = true; check(); } };
+  if (f.allowMonth) return h("input", { ...attrs, type: "text", placeholder: "YYYY-MM or YYYY-MM-DD", value: value || "" });
   if (f.type === "textarea") return h("textarea", attrs, value || "");
   if (f.options) return h("select", attrs, f.options.map(o => h("option", { value: o, selected: o === value }, o || "—")));
   return h("input", { ...attrs, type: f.type || "text", value: value || "" });
@@ -78,6 +79,8 @@ function doubts(p) {
     if (!v) return;
     const where = `${s.title}${n} → ${f.label}`;
     if (v !== v.trim() || /\s{2,}/.test(v)) out.push(`${where} has extra spaces`);
+    if (f.allowMonth && !/^\d{4}-(?:0[1-9]|1[0-2])(?:-(?:0[1-9]|[12]\d|3[01]))?$/.test(v))
+      out.push(where + " needs a date in YYYY-MM or YYYY-MM-DD format");
     if (f.type === "email" && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v)) out.push(`${where} doesn't look like an email`);
     if (f.type === "tel" && !v.startsWith("+")) out.push(`${where} has no +country code`);
   });
