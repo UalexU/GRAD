@@ -85,5 +85,23 @@ with sync_playwright() as pw:
     open_gradfill(sw)
     expect(page.locator("#discipline")).to_be_checked()
     assert not page.locator("#crime").is_checked()
-    print('PASS: earned credit extraction, local CV selection, discipline review, and repeated Add Employer forms')
+    sw.evaluate("() => chrome.storage.local.set({settings:{autoFill:false}})")
+    safety_markup = (
+        '<form><label for="first">First Name</label><input id="first">'
+        '<button type="button" id="send-test" onclick="document.body.dataset.sent = 1">Send test</button></form>'
+    )
+    page.route(base + "/review-safety", lambda route: route.fulfill(body=safety_markup, content_type="text/html"))
+    page.goto(base + "/review-safety")
+    open_gradfill(sw)
+    expect(panel(page).locator(".card.ok")).to_be_visible()
+    page.locator("#first").fill("Manually edited")
+    panel(page).get_by_role("button", name="Fill 1 ticked field").click()
+    expect(page.locator("#first")).to_have_value("Manually edited")
+    expect(panel(page).locator(".res.bad")).to_contain_text("changed after scanning")
+    page.locator("#send-test").click()
+    assert page.evaluate("document.body.dataset.sent") is None
+    panel(page).get_by_role("button", name="Close").click()
+    page.locator("#send-test").click()
+    assert page.evaluate("document.body.dataset.sent") == "1"
+    print("PASS: application fields, PDFs, distinct employer entries, stale edits, and closing the panel")
     ctx.close()

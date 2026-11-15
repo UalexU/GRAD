@@ -216,7 +216,7 @@ var GF = globalThis.GF;
     const top = scored[0], second = scored[1];
     if (!top || top.s < 60) return { opt: null, score: 0, exact: false, sure: false };
     const gap = top.s - (second ? second.s : 0);
-    return { opt: top.o, score: top.s, exact: top.s >= 95, sure: top.s >= 95 || (top.s >= 70 && gap >= 10),
+    return { opt: top.o, score: top.s, exact: top.s >= 95, sure: (top.s >= 95 && gap > 0) || (top.s >= 70 && gap >= 10),
       runnerUp: second && second.s >= 60 && gap < 10 ? second.o : null };
   };
 })();

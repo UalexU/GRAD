@@ -78,6 +78,10 @@ const assert = require("node:assert/strict");
 assert.equal(GF.formatDateByHint("2026-08", "MM/YYYY"), "08/2026");
 assert.equal(GF.formatDateByHint("2026-08", "MM/DD/YYYY"), null);
 assert.equal(GF.formatDateByHint("2026-08-09", "MM/DD/YYYY"), "08/09/2026");
+assert.equal(GF.chooseOption([
+  { text: "Example University", value: "campus-1" },
+  { text: "Example University", value: "campus-2" },
+], ["Example University"]).sure, false);
 let bad = 0;
 for (const [label, word, name, ac, type, want, auto] of cases) {
   const f = { label, name, id: "", autocomplete: ac, type, section: word ? { word, sec: { recommender: "recommenders", research: "research", employment: "employment", education: "education", address: "address", citizenship: "citizenship", "other person": "other", publication: "publications" }[word] } : null };

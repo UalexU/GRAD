@@ -5,13 +5,12 @@
   if (window.__gradfill) { window.__gradfill.show(); return; }
 
   const S = {
-    profile: null, tracker: null, appId: "", rows: [], unlocked: false, filledOnce: false,
+    profile: null, tracker: null, appId: "", rows: [], unlocked: false, filling: false,
     ctx: Object.fromEntries(GF.LIST_SECTIONS.map(s => [s, 0])),
     active: null, // list section that bare "start/end date" fields refer to
     documents: [],
     entryForms: {},
     chosen: {}, // list sections whose entry you picked in the panel on this page
-    auto: {},   // list sections whose entry GradFill could work out (your only post-secondary degree)
     ours: new WeakMap(), // field → value GradFill typed there, so switching entries can replace it
     maps: {}, allMaps: {}, // fields you taught GradFill, per site: { host: { learnKey: profileKey | "-" } }
   };
@@ -177,12 +176,20 @@
         }
         f.current = isDivCombo ? clean(el.innerText) : el.value;
         if (f.tag === "select") {
-          f.options = [...el.options].map(o => ({ text: clean(o.text), value: o.value }));
+          const choices = new Map();
+          for (const option of el.options) {
+            if (option.disabled || option.closest("optgroup[disabled]")) continue;
+            const text = clean(option.text), value = option.value;
+            const key = JSON.stringify([text, value]);
+            if (!choices.has(key)) choices.set(key, { text, value });
+          }
+          f.options = [...choices.values()];
+          f.currentLabel = clean(el.selectedOptions[0]?.text);
           const preset = [...el.options].find(o => o.defaultSelected) || el.options[0];
           f.preset = preset ? preset.value : "";  // what the page itself pre-selected
         }
         else if (el.list) { f.options = [...el.list.options].map(o => ({ text: clean(o.label || o.value), value: o.value })); f.datalist = true; }
-        else if (isDivCombo || el.getAttribute("role") === "combobox" || /^(list|both)$/.test(el.getAttribute("aria-autocomplete") || "")) f.combo = true;
+        else if (isDivCombo || el.matches('[role="combobox"], .ui-autocomplete-input, [data-autocomplete], [aria-autocomplete="list"], [aria-autocomplete="both"]')) f.combo = true;
       }
       out.push(f);
     }
@@ -236,7 +243,9 @@
     const section = S.profile?.[sec];
     if (!section) return { err: "Not in your details" };
     if (a === "*") {
-      const fromHeading = sect && sect.sec === sec && sect.index != null && sect.index < section.length;
+      const fromHeading = sect && sect.sec === sec && sect.index != null;
+      if (fromHeading && sect.index >= section.length)
+        return { list: sec, err: "No " + title(sec).toLowerCase() + " entry #" + (sect.index + 1) + " is saved." };
       const i = fromHeading ? sect.index : S.ctx[sec] || 0, entry = section[i];
       const needsEntry = ["employment", "research"].includes(sec) && !fromHeading &&
         !S.chosen[sec] && section.filter(item => Object.values(item).some(Boolean)).length > 1;
@@ -367,6 +376,8 @@
     const yesNo = f.group && f.options.length === 2 && f.options.every(o => /^(yes|no)\b/i.test(o.text));
     const special = applicationAnswer(f, label, yesNo);
     if (why && !special) return { ...row, status: "manual", notes: [`Never filled by GradFill: ${why}`] };
+    if (f.tag === "select" && f.options.some(o => /^(?:mailing|current|permanent) address$/i.test(o.text)))
+      return { ...row, status: "manual", notes: ["Choose the address type for this form."] };
     if (f.type === "checkbox" && !yesNo) {
       const sponsor = /\b(?:scholarship|award)\b.*\b(?:recipient|managed by)\b|\brecipient\b.*\bscholarship\b/i.test(label) &&
         S.profile?.funding?.scholarship_sponsor;
@@ -389,7 +400,7 @@
     const taught = S.maps[learnKey(f)];
     if (taught === "-") { row.taught = true; row.notes.push("You chose to leave this field alone on this site"); return row; }
     const pickd = special || (taught ? { key: taught, conf: "taught" } : GF.pickKey(f, ctxLabel));
-    if (!pickd && ((f.section && f.section.sec === "other") || GF.OTHER_PERSON.test(label))) {
+    if (f.section?.sec === "other" || GF.OTHER_PERSON.test(label)) {
       row.notes.push("Asks about someone else (e.g. an emergency contact) — GradFill never puts your details here");
       return row;
     }
@@ -447,7 +458,8 @@
         row.notes = notes; return row;
       }
       // a dropdown that lists your exact value is a second clue that this is the right question
-      if (conf === "low" && c.exact && f.options.length > 2 && !/^(yes|no|y|n|true|false)$/i.test(value)) {
+      if (conf === "low" && !/^citizenship\.(?:second_country_of_citizenship|dual_citizenship)$/.test(key) &&
+          c.exact && f.options.length > 2 && !/^(yes|no|y|n|true|false)$/i.test(value)) {
         notes.splice(notes.indexOf("Not sure this question asks for this detail — check, or choose another below"), 1);
         soft.push(`Matched because this dropdown lists your “${value}”`);
       }
@@ -457,8 +469,7 @@
       value = c.opt.text;
       const cur = f.group ? f.options.find(o => o.el.checked) : null;
       if (cur && cur !== c.opt) notes.push(`Currently "${cur.text}" — will be changed`);
-    } else if (f.combo || (/^education\.\d+\.institution$/.test(row.key) && f.tag === "input")) {
-      f.combo = true; // institution boxes usually suggest names as you type: pick the matching one, else keep the text
+    } else if (f.combo) {
       soft.push("Type-to-search list — GradFill types your value and picks the matching option");
       row.variants = variants;
     } else {
@@ -498,21 +509,20 @@
     }
     // Choose defaults for education and single-entry sections.
     // Education: your most recent degree (not Class XII / high school). Others: the first one you saved.
-    S.auto = {};
     for (const sec of GF.LIST_SECTIONS) {
       if (S.chosen[sec]) continue;
       const filled = ((S.profile && S.profile[sec]) || []).map((e, i) => [e, i]).filter(([e]) => Object.values(e).some(Boolean));
       if (!filled.length) continue;
       const degree = sec === "education" && filled.find(([e]) => !GF.SCHOOL_LEVEL.test(`${e.degree} ${e.institution}`));
-      S.auto[sec] = (degree || filled[0])[1];
-      S.ctx[sec] = S.auto[sec];
+      S.ctx[sec] = (degree || filled[0])[1];
     }
     S.rows = fields.map(planField);
     S.rows.forEach((r, i) => (r.n = i + 1));
     // a single "Street" box and no line-2 box on the page: both address lines go in that one box
+    const keys = new Set(S.rows.map(row => row.key));
     for (const r of S.rows) {
       const m = /^(address\.|recommenders\.\d+\.address_)line1$/.exec(r.key || "");
-      if (!m || !FILLABLE.has(r.status) || S.rows.some(x => x.key === r.key.replace(/line1$/, "line2"))) continue;
+      if (!m || !FILLABLE.has(r.status) || keys.has(r.key.replace(/line1$/, "line2"))) continue;
       const src = r.key.startsWith("address.") ? S.profile.address : S.profile.recommenders[Number(r.key.split(".")[1])];
       const second = r.key.startsWith("address.") ? src.line2 : src.address_line2;
       if (!second) continue;
@@ -542,7 +552,8 @@
   function listOptions(el, before) {
     const ids = [el.getAttribute("aria-controls"), el.getAttribute("aria-owns")].filter(Boolean).join(" ").split(/\s+/).filter(Boolean);
     const lists = ids.map(id => document.getElementById(id)).filter(Boolean);
-    const found = lists.length ? lists.flatMap(l => [...l.querySelectorAll(SUGGEST)]).filter(o => shown(o))
+    const found = lists.length ? lists.flatMap(l => [...l.querySelectorAll(SUGGEST)]).filter(o =>
+      shown(o) && !o.matches('[aria-disabled="true"], [disabled]') && !o.querySelector(SUGGEST))
       : suggestions().filter(o => !before.has(o));
     return found.map(o => ({ text: clean(o.innerText), value: o.getAttribute("data-value") || "", el: o })).filter(o => o.text);
   }
@@ -553,16 +564,18 @@
   // Type-to-search boxes: type your value, wait for the list, pick the option that clearly matches.
   async function fillCombo(r) {
     const el = r.f.el, variants = r.variants || [r.value], isInput = el.tagName === "INPUT";
+    const before = new Set(suggestions());
     el.scrollIntoView({ block: "center" });
     el.focus();
-    const before = new Set(suggestions());
     if (isInput) {
       setNative(el, variants[0]); fire(el, "input");
       el.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
       el.dispatchEvent(new KeyboardEvent("keyup", { key: "a", bubbles: true }));
     } else press(el);
     let opts = await waitFor(() => listOptions(el, before), 2500);
-    if (!opts.length && isInput) { press(el); opts = await waitFor(() => listOptions(el, before), 1500); }
+    if (!el.isConnected || el.disabled || !host.isConnected) return "The form changed while waiting for suggestions.";
+    if (!opts.length && isInput) { press(el); opts = await waitFor(() => listOptions(el, before), 1000); }
+    if (!el.isConnected || el.disabled || !host.isConnected) return "The form changed while waiting for suggestions.";
     const c = GF.chooseOption(opts, variants);
     if ((!c.opt || !c.sure) && isInput && !el.closest("[role=combobox]:not(input)") && el.getAttribute("aria-autocomplete") !== "none") {
       // a search box that also takes typed text ("if your school is not listed, enter it manually")
@@ -577,6 +590,7 @@
       if (isInput) { setNative(el, ""); fire(el, "input"); }
       return !opts.length ? "No list appeared — choose it yourself" : c.opt ? `Can't tell which option is right (closest: "${c.opt.text}") — choose it yourself` : "No matching option in the list — choose it yourself";
     }
+    if (!c.opt.el.isConnected || !shown(c.opt.el)) return "The selected suggestion disappeared. Rescan before filling.";
     press(c.opt.el);
     r.value = c.opt.text;
     await sleep(250);
@@ -584,12 +598,18 @@
   }
 
   async function fillRow(r) {
-    if (!r.f.el.isConnected) return "This form changed. Rescan before filling.";
     const { f } = r, el = f.el;
-    if (!el.isConnected) return "Field disappeared from the page — rescan";
+    if (!el.isConnected || el.disabled || el.readOnly || el.getAttribute("aria-disabled") === "true" || !visible(el))
+      return "This field changed. Rescan before filling.";
+    if (f.group ? f.options.some(o => o.checked !== o.el.checked) :
+        f.current !== (f.type === "combobox" ? clean(el.innerText) : el.value) ||
+        (f.tag === "select" && f.currentLabel !== clean(el.selectedOptions[0]?.text))) {
+      if (norm(readBack(r)) === norm(r.value)) return null;
+      return "The value changed after scanning. Rescan before filling.";
+    }
     if (f.group) {
       const o = r.option;
-      if (!o) return `No option matches "${r.value}"`;
+      if (!o || !o.el.isConnected || o.el.disabled) return "This answer is no longer available. Rescan before filling.";
       if (!o.el.checked) o.el.click();
       if (!o.el.checked) { o.el.checked = true; fire(o.el, "input", "change"); }
       return null;
@@ -597,8 +617,13 @@
     if (f.tag === "select") {
       const o = r.option || (f.options || []).find(x => x.text === r.value);
       if (!o) return `No option matches "${r.value}"`;
-      el.value = o.value;
-      fire(el, "input", "change");
+      const index = [...el.options].findIndex(item => item.value === o.value && clean(item.text) === o.text &&
+        !item.disabled && !item.closest("optgroup[disabled]"));
+      if (index < 0) return "The dropdown options changed. Rescan before filling.";
+      if (el.value !== o.value || clean(el.selectedOptions[0]?.text) !== o.text) {
+        el.selectedIndex = index;
+        fire(el, "input", "change");
+      }
       return null;
     }
     if (f.datalist && r.option) {
@@ -628,14 +653,27 @@
 
   const COLORS = { ok: "#1f9d55", verify: "#e8a400", bad: "#d93025", flag: "#e8a400", find: "#2a5bd7" };
   const elOf = r => (r.f.group ? (r.option || r.f.options[0]).el : shownTarget(r.f.el));
+  const originalOutlines = new WeakMap();
   function mark(el, color, dashed) {
+    if (!el) return;
     const target = el.type === "radio" ? el.closest("fieldset, .form_question, label") || el : el;
-    target.style.outline = color ? `2px ${dashed ? "dashed" : "solid"} ${color}` : "";
-    target.style.outlineOffset = color ? "2px" : "";
+    const properties = ["outline", "outline-offset"];
+    if (!color) {
+      const original = originalOutlines.get(target);
+      if (!original) return;
+      properties.forEach((key, i) => target.style.setProperty(key, ...original[i]));
+      originalOutlines.delete(target);
+      return;
+    }
+    if (!originalOutlines.has(target)) {
+      originalOutlines.set(target, properties.map(key => [
+        target.style.getPropertyValue(key), target.style.getPropertyPriority(key),
+      ]));
+    }
+    target.style.outline = "2px " + (dashed ? "dashed " : "solid ") + color;
+    target.style.outlineOffset = "2px";
   }
 
-  // Signature of what can be answered: changes when questions appear or a dropdown's options load.
-  const shape = () => S.rows.map(r => `${r.f.gid}:${(r.f.options || []).length}:${r.status}`).join("|");
   async function fillApproved() {
     let ok = 0, bad = 0;
     const done = new Map(); // field element → its row, across passes
@@ -644,33 +682,33 @@
       if (!todo.length) break;
       const counts = await fillRows(todo);
       ok += counts.ok; bad += counts.bad;
-      await logActivity(counts.ok, counts.bad); // right away: you may move on before the next round
       todo.forEach(r => done.set(r.f.el, r));
-      if (!S.autoFill) break; // review-first mode: never fill a question you have not seen
+      if (!S.autoFill || !host.isConnected || pass === 2) break; // review-first mode: never fill a question you have not seen
       // answering e.g. Country can load Region's options or reveal new questions: re-read and go again
-      const before = shape();
       await sleep(700);
+      if (!host.isConnected) break;
       plan();
       S.rows = S.rows.map(r => (done.has(r.f.el) ? Object.assign(done.get(r.f.el), { n: r.n }) : r));
-      if (shape() === before) break;
     }
     // fields waiting for your decision get a dashed outline so you can spot them on the page
-    for (const r of S.rows) if (r.status === "flag" && !r.result) mark(elOf(r), COLORS.flag, true);
-    S.filledOnce = true;
-    const newFields = scan().length - S.rows.length;
+    if (host.isConnected) for (const r of S.rows) if (r.status === "flag" && !r.result) mark(elOf(r), COLORS.flag, true);
+    const newFields = host.isConnected ? scan().length - S.rows.length : 0;
+    try { await logActivity(ok, bad); } catch { /* the form may be filled even if its activity cannot be saved */ }
     return { ok, bad, newFields: Math.max(0, newFields) };
   }
 
   async function fillRows(todo) {
     let ok = 0, bad = 0;
     for (const r of todo) {
-      r.error = await fillRow(r);
+      if (!host.isConnected) break;
+      try { r.error = await fillRow(r); }
+      catch { r.error = "The portal rejected this field. Review it on the page."; }
       const actual = r.error ? "" : readBack(r);
       const same = r.f.combo ? norm(actual).includes(norm(r.value)) : norm(actual) === norm(r.value);
       r.result = { actual, ok: !r.error && same };
       r.result.ok ? ok++ : bad++;
       if (r.result.ok) { r.approved = false; if (!r.f.group) S.ours.set(r.f.el, actual); } // done: don't offer it again
-      mark(elOf(r), !r.result.ok ? COLORS.bad : r.status === "ok" ? COLORS.ok : COLORS.verify);
+      if (host.isConnected) mark(elOf(r), !r.result.ok ? COLORS.bad : r.status === "ok" ? COLORS.ok : COLORS.verify);
     }
     return { ok, bad };
   }
@@ -681,7 +719,7 @@
     const { tracker } = await chrome.storage.local.get("tracker");
     const app = tracker && tracker.applications.find(a => a.id === S.appId);
     if (!app) return;
-    app.activity = [{ t: new Date().toISOString(), text: `Filled ${ok} field(s)${bad ? `, ${bad} problem(s)` : ""} on “${document.title.slice(0, 80)}”`, url: location.href }, ...(app.activity || [])].slice(0, 200);
+    app.activity = [{ t: new Date().toISOString(), text: `Filled ${ok} field(s)${bad ? `, ${bad} problem(s)` : ""} on “${document.title.slice(0, 80)}”`, url: location.origin + location.pathname }, ...(app.activity || [])].slice(0, 200);
     if (!app.status || app.status === "Not started") app.status = "In progress";
     await chrome.storage.local.set({ tracker });
   }
@@ -709,14 +747,14 @@
   let onBlocked = () => {};
   function buttonText(b) { return clean(b.innerText || b.value || b.getAttribute("aria-label") || ""); }
   document.addEventListener("click", ev => {
-    if (S.unlocked || !(ev.target instanceof Element) || ev.target.closest("#gradfill-host")) return;
+    if (!host.isConnected || S.unlocked || !(ev.target instanceof Element) || ev.target.closest("#gradfill-host")) return;
     const b = ev.target.closest("button, input[type=submit], input[type=button], a, [role=button]");
     if (!b || !GF.SUBMIT_LIKE.test(buttonText(b))) return;
     ev.preventDefault(); ev.stopImmediatePropagation();
     onBlocked(buttonText(b));
   }, true);
   document.addEventListener("submit", ev => {
-    if (S.unlocked || !ev.submitter || !GF.SUBMIT_LIKE.test(buttonText(ev.submitter))) return;
+    if (!host.isConnected || S.unlocked || !ev.submitter || !GF.SUBMIT_LIKE.test(buttonText(ev.submitter))) return;
     ev.preventDefault(); ev.stopImmediatePropagation();
     onBlocked(buttonText(ev.submitter));
   }, true);
@@ -781,7 +819,7 @@
   function render(message) {
     panel.replaceChildren();
     panel.append(h("header", {}, h("b", {}, "GradFill — review this page"),
-      h("button", { title: "Close", "aria-label": "Close", onclick: () => host.remove() }, "×")));
+      h("button", { title: "Close", "aria-label": "Close", onclick: closePanel }, "×")));
     const body = h("div", { class: "body" });
     panel.append(body);
     if (message) body.append(message);
@@ -942,6 +980,7 @@
 
   // Picking another recommender / degree / job: re-read the page and fill that entry instead.
   async function switchEntry(sec, i) {
+    if (S.filling) return;
     if (S.entryForms[sec] && !S.entryForms[sec].isConnected) { replan(); return; }
     S.ctx[sec] = i;
     S.chosen[sec] = true;
@@ -961,13 +1000,20 @@
   }
 
   function replan() {
+    if (S.filling) return;
     S.rows.forEach(r => mark(elOf(r), ""));
     plan();
     render();
   }
 
   async function doFill() {
-    const { ok, bad, newFields } = await fillApproved();
+    if (S.filling) return;
+    S.filling = true;
+    let result;
+    try { result = await fillApproved(); }
+    finally { S.filling = false; }
+    if (!host.isConnected) return;
+    const { ok, bad, newFields } = result;
     const waiting = S.rows.filter(r => r.status === "flag" && !r.result).length;
     const yours = S.rows.filter(r => (r.status === "manual" || r.status === "upload") && r.f.required).length;
     const msg = h("div", { class: `msg ${bad ? "err" : "good"}` },
@@ -996,6 +1042,12 @@
     S.appId = matchApp();
   }
 
+  function closePanel() {
+    host.remove();
+    S.unlocked = false;
+    S.rows.forEach(r => mark(elOf(r), ""));
+  }
+
   function show() {
     if (!host.isConnected) document.documentElement.append(host);
   }
@@ -1003,7 +1055,9 @@
   const hasProfile = () => S.profile && Object.values(S.profile.personal || {}).some(Boolean);
   // Clicking the icon = scan, and (unless turned off) fill the fields GradFill is sure about.
   async function start() {
+    if (S.filling) return;
     await load();
+    if (S.filling) return;
     S.rows.forEach(r => mark(elOf(r), ""));
     plan();
     show();
